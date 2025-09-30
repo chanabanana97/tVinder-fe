@@ -1,0 +1,12 @@
+import { describe, it, expect } from 'vitest'
+
+function advance(index: number, len: number) {
+    return Math.min(index + 1, len)
+}
+
+describe('swipe logic', () => {
+    it('advances index', () => {
+        expect(advance(0, 3)).toBe(1)
+        expect(advance(2, 3)).toBe(3)
+    })
+})
