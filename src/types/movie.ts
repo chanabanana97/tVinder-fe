@@ -2,10 +2,10 @@ export interface Movie {
     id: number
     title: string
     overview?: string
-    poster_path?: string
-    backdrop_path?: string
-    release_date?: Date
+    posterPath?: string
+    backdropPath?: string
+    releaseDate?: Date
     popularity?: number
-    vote_count?: number
-    vote_average?: number
+    voteCount?: number
+    voteAverage?: number
 }

@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from 'react-query'
+import { useQuery, useQueryClient, useMutation } from 'react-query'
 import { fetchSessionMovies } from '../../api/moviesApi'
+import { saveSwipe } from '../../api/sessionsApi'
+import { useAuth } from '../../state/authStore'
 import { MovieCard } from '../../components/MovieCard'
 import '../../styles/MovieSwiper.css'
 
@@ -14,18 +16,31 @@ export default function MovieSwiper() {
     const [index, setIndex] = useState(0)
     const [liked, setLiked] = useState<number[]>([])
     const [passed, setPassed] = useState<number[]>([])
+    const userId = useAuth((s) => s.userId)
+
+    const swipeMut = useMutation(({ movieId, liked }: { movieId: number, liked: boolean }) =>
+        saveSwipe(Number(sessionId), userId!, movieId, liked)
+        , {
+            onError(err) {
+                console.error('Failed saving swipe', err)
+                // you can add retry/queue logic here
+            }
+        })
 
 
     const like = useCallback(() => {
         if (!movies) return
         setLiked((s) => [...s, movies[index].id])
         setIndex((i) => i + 1)
+        // persist swipe for current user
+        if (userId) swipeMut.mutate({ movieId: movies[index].id, liked: true })
     }, [movies, index])
 
     const pass = useCallback(() => {
         if (!movies) return
         setPassed((s) => [...s, movies[index].id])
         setIndex((i) => i + 1)
+        if (userId) swipeMut.mutate({ movieId: movies[index].id, liked: false })
     }, [movies, index])
 
     useEffect(() => {
