@@ -5,6 +5,7 @@ import { fetchSessionMovies } from '../../api/moviesApi'
 import { saveSwipe } from '../../api/sessionsApi'
 import { useAuth } from '../../state/authStore'
 import { MovieCard } from '../../components/MovieCard'
+import { MatchNotificationListener } from './MatchNotificationListener'
 import '../../styles/MovieSwiper.css'
 
 export default function MovieSwiper() {
@@ -23,7 +24,6 @@ export default function MovieSwiper() {
         , {
             onError(err) {
                 console.error('Failed saving swipe', err)
-                // you can add retry/queue logic here
             }
         })
 
@@ -145,6 +145,9 @@ export default function MovieSwiper() {
         }, 300)
     }
 
+    // match modal close
+    // const closeMatch = () => setMatchMovies(null)
+
     // Render stacked cards: top two plus current
     const stack = [0, 1, 2].map(i => movies[index + i]).filter(Boolean)
 
@@ -190,6 +193,7 @@ export default function MovieSwiper() {
             </div>
 
             {/* Buttons removed: use swipe or arrow keys to like/pass */}
+            {sessionId && <MatchNotificationListener sessionId={sessionId} />}
         </div>
     )
 }
