@@ -1,15 +1,23 @@
 import { Client } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Movie } from '../../types/movie'
 import { MovieCard } from '../../components/MovieCard'
+import { Button } from '../../components/ui/Button'
 
 interface Props {
     sessionId: string
+    onMatchStateChange?: (isOpen: boolean) => void
 }
 
-export function MatchNotificationListener({ sessionId }: Props) {
+export function MatchNotificationListener({ sessionId, onMatchStateChange }: Props) {
     const [match, setMatch] = useState<Movie | null>(null)
+    const navigate = useNavigate()
+
+    useEffect(() => {
+        onMatchStateChange?.(!!match)
+    }, [match, onMatchStateChange])
 
     useEffect(() => {
         if (!sessionId) return;
@@ -18,7 +26,7 @@ export function MatchNotificationListener({ sessionId }: Props) {
         // In production, use the full URL from env
         const envUrl = (import.meta as any).env.VITE_WS_URL
         const isDev = (import.meta as any).env.DEV
-        
+
         // If we have a proxy for /ws in vite.config.ts, use relative path in dev
         const socketUrl = isDev ? '/ws' : (envUrl || 'http://localhost:8080/ws')
 
@@ -59,30 +67,35 @@ export function MatchNotificationListener({ sessionId }: Props) {
     if (!match) return null
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center" style={{ zIndex: 3000 }}>
-            <div className="bg-white p-6 rounded-lg max-w-md w-full relative">
-                <div className="flex items-start justify-between mb-4">
-                    <h3 className="text-2xl font-bold text-red-600">It's a Match!</h3>
-                    <button
-                        aria-label="Close match"
-                        onClick={() => setMatch(null)}
-                        className="text-gray-500 hover:text-gray-800 text-xl font-bold"
-                    >
-                        ✕
-                    </button>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm" style={{ zIndex: 3000 }}>
+            <div className="bg-[#1a1a1a] p-6 rounded-2xl w-full max-w-md relative border border-white/10 shadow-2xl flex flex-col max-h-[90vh]">
+                <div className="text-center mb-6">
+                    <h3 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-violet-500">
+                        It's a Match!
+                    </h3>
                 </div>
 
-                <div className="max-h-[70vh] overflow-y-auto">
-                    <MovieCard movie={match} loading="eager" />
+                <div className="flex-1 overflow-hidden rounded-xl mb-6 relative min-h-[300px]">
+                    <div className="h-full overflow-y-auto custom-scrollbar">
+                        <MovieCard movie={match} loading="eager" />
+                    </div>
                 </div>
 
-                <div className="mt-4 text-right">
-                    <button
+                <div className="flex flex-col gap-3">
+                    <Button
+                        variant="primary"
+                        fullWidth
                         onClick={() => setMatch(null)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                     >
                         Keep Swiping
-                    </button>
+                    </Button>
+                    <Button
+                        variant="outline"
+                        fullWidth
+                        onClick={() => navigate('/session')}
+                    >
+                        End Session
+                    </Button>
                 </div>
             </div>
         </div>

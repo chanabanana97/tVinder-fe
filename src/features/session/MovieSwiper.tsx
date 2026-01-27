@@ -1,100 +1,91 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient, useMutation } from 'react-query'
+import { useQuery, useMutation } from 'react-query'
 import { fetchSessionMovies } from '../../api/moviesApi'
 import { saveSwipe } from '../../api/sessionsApi'
 import { useAuth } from '../../state/authStore'
 import { MovieCard } from '../../components/MovieCard'
 import { MatchNotificationListener } from './MatchNotificationListener'
-import '../../styles/MovieSwiper.css'
+import { Layout } from '../../components/ui/Layout'
+import { Button } from '../../components/ui/Button'
+import styles from './MovieSwiper.module.scss'
 
 export default function MovieSwiper() {
-    const { sessionId } = useParams()
+    const { sessionId } = useParams<{ sessionId: string }>()
     const navigate = useNavigate()
-    const qc = useQueryClient()
-    const { data: movies } = useQuery(['sessionMovies', sessionId], () => fetchSessionMovies(Number(sessionId)))
+    const { data: movies, isLoading } = useQuery(['sessionMovies', sessionId], () => fetchSessionMovies(Number(sessionId)))
 
-    const [index, setIndex] = useState(0)
-    const [liked, setLiked] = useState<number[]>([])
-    const [passed, setPassed] = useState<number[]>([])
+    const [index, setIndex] = useState(() => {
+        const saved = localStorage.getItem(`swipe_index_${sessionId}`)
+        return saved ? parseInt(saved, 10) : 0
+    })
+
+    useEffect(() => {
+        if (sessionId) {
+            localStorage.setItem(`swipe_index_${sessionId}`, index.toString())
+        }
+    }, [index, sessionId])
+
+    const [isMatchOpen, setIsMatchOpen] = useState(false)
     const userId = useAuth((s) => s.userId)
 
     const swipeMut = useMutation(({ movieId, liked }: { movieId: number, liked: boolean }) =>
-        saveSwipe(Number(sessionId), userId!, movieId, liked)
-        , {
-            onError(err) {
+        saveSwipe(Number(sessionId), userId!, movieId, liked),
+        {
+            onError: (err) => {
                 console.error('Failed saving swipe', err)
             }
         })
 
+    const handleSwipe = useCallback((liked: boolean) => {
+        if (isMatchOpen) return
+        if (!movies || index >= movies.length) return
 
-    const like = useCallback(() => {
-        if (!movies) return
-        setLiked((s) => [...s, movies[index].id])
-        setIndex((i) => i + 1)
-        // persist swipe for current user
-        if (userId) swipeMut.mutate({ movieId: movies[index].id, liked: true })
-    }, [movies, index])
-
-    const pass = useCallback(() => {
-        if (!movies) return
-        setPassed((s) => [...s, movies[index].id])
-        setIndex((i) => i + 1)
-        if (userId) swipeMut.mutate({ movieId: movies[index].id, liked: false })
-    }, [movies, index])
-
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowRight') triggerSwipe('like')
-            if (e.key === 'ArrowLeft') triggerSwipe('pass')
+        // Trigger manual swipe animation logic
+        triggerSwipe(liked ? 'like' : 'pass')
+    }, [movies, index, isMatchOpen]) // triggerSwipe will be stable or captured below
+    const finalizeSwipe = useCallback((liked: boolean) => {
+        setIndex((prev) => prev + 1)
+        if (movies && movies[index]) {
+            swipeMut.mutate({ movieId: movies[index].id, liked })
         }
-        window.addEventListener('keydown', onKey)
-        return () => window.removeEventListener('keydown', onKey)
-    }, [like, pass])
+    }, [movies, index, swipeMut])
 
-    // Preload next 2 posters to improve perceived speed
-    useEffect(() => {
-        if (!movies || movies.length === 0) return
-        const IMAGE_BASE = (import.meta as any).env?.VITE_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500/'
-        const toPreload = movies.slice(index + 1, index + 3)
-        const imgs: HTMLImageElement[] = []
-        toPreload.forEach(m => {
-            const path = (m as any).poster_path || (m as any).posterPath
-            if (!path) return
-            const url = `${IMAGE_BASE.replace(/\/$/, '')}/${String(path).replace(/^\//, '')}`
-            const img = new Image()
-            img.src = url
-            imgs.push(img)
-        })
-        return () => { imgs.forEach(i => (i.src = '')) }
-    }, [index, movies])
-
-    // Drag/swipe state (must be declared before any early return to keep hook order stable)
+    // Drag/swipe state
     const [drag, setDrag] = useState({ x: 0, y: 0, angle: 0, dragging: false })
     const topRef = useRef<HTMLDivElement | null>(null)
     const threshold = 120
 
-    if (!movies) return <div className="p-6">Loading...</div>
-    if (index >= movies.length) {
-        // show summary or navigate
-        return (
-            <div className="p-6">
-                <h2>Finished</h2>
-                <div className="mt-4">
-                    <h3 className="text-lg font-semibold">Liked Movies IDs:</h3>
-                    <p>{liked.join(', ') || 'None'}</p>
-                    <h3 className="text-lg font-semibold mt-4">Passed Movies IDs:</h3>
-                    <p>{passed.join(', ') || 'None'}</p>
-                </div>
-            </div>
-        )
+    const triggerSwipe = (action: 'like' | 'pass') => {
+        if (isMatchOpen) return
+        if (topRef.current) {
+            topRef.current.style.transition = 'transform 0.3s ease-in-out'
+        }
+
+        const dir = action === 'like' ? 1 : -1
+        const offX = (dir * 1000) + (drag.x * 3)
+        setDrag(d => ({ ...d, x: offX, y: d.y + 50, dragging: false })) // Maintain y direction feel
+
+        setTimeout(() => {
+            finalizeSwipe(action === 'like')
+            // reset drag for next card
+            setDrag({ x: 0, y: 0, angle: 0, dragging: false })
+            if (topRef.current) {
+                topRef.current.style.transition = '' // Remove transition for next drag
+            }
+        }, 300)
     }
 
-    const current = movies[index]
-
+    const settleSwipe = (x: number) => {
+        if (x > threshold) return 'like'
+        if (x < -threshold) return 'pass'
+        return 'reset'
+    }
 
     const onPointerDown = (e: React.PointerEvent) => {
+        if (isMatchOpen) return
         (e.target as Element).setPointerCapture?.(e.pointerId)
+        if (topRef.current) topRef.current.style.transition = 'none'
         setDrag({ x: 0, y: 0, angle: 0, dragging: true })
     }
 
@@ -107,93 +98,153 @@ export default function MovieSwiper() {
         setDrag({ x, y, angle, dragging: true })
     }
 
-    const settleSwipe = (x: number) => {
-        if (x > threshold) {
-            // like
-            return 'like'
-        }
-        if (x < -threshold) {
-            // pass
-            return 'pass'
-        }
-        return 'reset'
-    }
-
     const onPointerUp = (e: React.PointerEvent) => {
         (e.target as Element).releasePointerCapture?.(e.pointerId)
         const action = settleSwipe(drag.x)
         if (action === 'reset') {
+            if (topRef.current) topRef.current.style.transition = 'transform 0.2s ease-out'
             setDrag({ x: 0, y: 0, angle: 0, dragging: false })
             return
         }
         triggerSwipe(action)
     }
 
-    const triggerSwipe = (action: 'like' | 'pass') => {
-        // animate out
-        if (topRef.current) topRef.current.classList.add('animating-out')
-        const dir = action === 'like' ? 1 : -1
-        const offX = (dir * 1000) + (drag.x * 3)
-        setDrag(d => ({ ...d, x: offX, y: d.y + 50, dragging: false }))
+    // Keyboard controls
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (isMatchOpen) return
+            if (e.key === 'ArrowRight' && !drag.dragging) triggerSwipe('like')
+            if (e.key === 'ArrowLeft' && !drag.dragging) triggerSwipe('pass')
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [drag.dragging, index, isMatchOpen])
 
-        setTimeout(() => {
-            if (action === 'like') like()
-            else pass()
-            // reset drag for next card
-            setDrag({ x: 0, y: 0, angle: 0, dragging: false })
-            if (topRef.current) topRef.current.classList.remove('animating-out')
-        }, 300)
+    // Preload next images
+    useEffect(() => {
+        if (!movies || movies.length === 0) return
+        const IMAGE_BASE = (import.meta as any).env?.VITE_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500/'
+        const toPreload = movies.slice(index + 1, index + 3)
+        const imgs: HTMLImageElement[] = []
+        toPreload.forEach(m => {
+            if (!m.posterPath) return
+            const url = `${IMAGE_BASE.replace(/\/$/, '')}/${m.posterPath.replace(/^\//, '')}`
+            const img = new Image()
+            img.src = url
+            imgs.push(img)
+        })
+        return () => { imgs.forEach(i => (i.src = '')) }
+    }, [index, movies])
+
+    if (isLoading) {
+        return (
+            <Layout>
+                <div className="flex flex-col items-center justify-center p-20">
+                    <div className="w-16 h-16 border-4 border-solid border-pink-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-gray-500 font-medium">Finding the best movies for you...</p>
+                </div>
+            </Layout>
+        )
     }
 
-    // match modal close
-    // const closeMatch = () => setMatchMovies(null)
+    const currentMovie = movies && index < movies.length ? movies[index] : null
 
-    // Render stacked cards: top two plus current
-    const stack = [0, 1, 2].map(i => movies[index + i]).filter(Boolean)
+    // Render stacked cards: top 2 for visual depth
+    const stack = [0, 1].map(i => movies && movies[index + i]).filter(Boolean) as typeof movies
 
     return (
-        <div className="p-6 max-w-lg mx-auto">
-            <div className="swipe-container no-select">
-                <div className="card-stack">
-                    {stack.map((m, i) => {
-                        const z = stack.length - i
-                        const isTop = i === 0
-                        const classNames = ['swipe-card', `stack-${i}`, isTop ? 'top-card' : ''].join(' ')
-                        const style: React.CSSProperties = {}
-                        if (isTop) {
-                            style.transform = `translate(${drag.x}px, ${drag.y}px) rotate(${drag.angle}deg)`
-                            style.zIndex = 1000
-                        } else {
-                            style.zIndex = 1000 - i
-                        }
-                        return (
-                            <div
-                                key={m.id}
-                                ref={isTop ? topRef : undefined}
-                                className={classNames}
-                                style={style}
-                                onPointerDown={isTop ? onPointerDown : undefined}
-                                onPointerMove={isTop ? onPointerMove : undefined}
-                                onPointerUp={isTop ? onPointerUp : undefined}
-                                onPointerCancel={isTop ? onPointerUp : undefined}
-                            >
-                                {isTop && (
-                                    <>
-                                        <div className="overlay-label overlay-like" style={{ opacity: Math.min(1, Math.max(0, drag.x / 120)), fontSize: 28, padding: '10px 16px' }}>LIKE</div>
-                                        <div className="overlay-label overlay-nope" style={{ opacity: Math.min(1, Math.max(0, -drag.x / 120)), fontSize: 28, padding: '10px 16px' }}>NOPE</div>
-                                    </>
-                                )}
-                                <div className="card-inner">
-                                    <MovieCard movie={m} loading={isTop ? 'eager' : 'lazy'} />
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
+        <Layout>
+            {sessionId && <MatchNotificationListener sessionId={sessionId} onMatchStateChange={setIsMatchOpen} />}
 
-            {/* Buttons removed: use swipe or arrow keys to like/pass */}
-            {sessionId && <MatchNotificationListener sessionId={sessionId} />}
-        </div>
+            <div className={styles.swiperContainer}>
+                {currentMovie ? (
+                    <>
+                        <div className={styles.cardStack}>
+                            {stack && stack.map((m, i) => {
+                                const isTop = i === 0
+                                const zIndex = 100 - i
+                                const draggingStyle: React.CSSProperties = {}
+
+                                if (isTop) {
+                                    // Apply drag transform with rotation logic
+                                    draggingStyle.transform = `translate(${drag.x}px, ${drag.y}px) rotate(${drag.angle}deg)`
+                                    draggingStyle.zIndex = 1000
+                                } else {
+                                    // Stack effect for cards behind
+                                    draggingStyle.transform = `scale(${1 - (i * 0.05)}) translateY(${i * 10}px)`
+                                    draggingStyle.zIndex = zIndex
+                                    draggingStyle.filter = 'brightness(0.9)'
+                                }
+
+                                return (
+                                    <div
+                                        key={m.id}
+                                        ref={isTop ? topRef : undefined}
+                                        className={styles.swipeCard}
+                                        style={draggingStyle}
+                                        onPointerDown={isTop ? onPointerDown : undefined}
+                                        onPointerMove={isTop ? onPointerMove : undefined}
+                                        onPointerUp={isTop ? onPointerUp : undefined}
+                                        onPointerCancel={isTop ? onPointerUp : undefined}
+                                    >
+                                        {/* Overlay Labels */}
+                                        {isTop && (
+                                            <>
+                                                <div
+                                                    className={`${styles.overlayLabel} ${styles.overlayLike}`}
+                                                    style={{ opacity: Math.min(1, Math.max(0, drag.x / 80)) }}
+                                                >
+                                                    LIKE
+                                                </div>
+                                                <div
+                                                    className={`${styles.overlayLabel} ${styles.overlayNope}`}
+                                                    style={{ opacity: Math.min(1, Math.max(0, -drag.x / 80)) }}
+                                                >
+                                                    NOPE
+                                                </div>
+                                            </>
+                                        )}
+
+                                        <div className={styles.cardInner}>
+                                            <MovieCard movie={m} loading={isTop ? 'eager' : 'lazy'} />
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+
+                        <div className={styles.controls}>
+                            <button
+                                className={`${styles.roundButton} ${styles.passButton}`}
+                                onClick={() => handleSwipe(false)}
+                                disabled={swipeMut.isLoading || drag.dragging || isMatchOpen}
+                                title="Pass (Left Arrow)"
+                            >
+                                ✕
+                            </button>
+                            <button
+                                className={`${styles.roundButton} ${styles.likeButton}`}
+                                onClick={() => handleSwipe(true)}
+                                disabled={swipeMut.isLoading || drag.dragging || isMatchOpen}
+                                title="Like (Right Arrow)"
+                            >
+                                ❤️
+                            </button>
+                        </div>
+
+                        <div className="text-center text-sm font-semibold text-gray-400">
+                            {index + 1} / {movies?.length} movies
+                        </div>
+                    </>
+                ) : (
+                    <div className={styles.emptyState}>
+                        <div className="text-6xl mb-6">🍿</div>
+                        <h2 className="text-3xl mb-2 font-bold">That's a Wrap!</h2>
+                        <p className="text-gray-500 mb-8 max-w-sm mx-auto">You've reached the end of the movie list. Check back later for matches!</p>
+                        <Button variant="outline" onClick={() => navigate('/session')}>Exit Room</Button>
+                    </div>
+                )}
+            </div>
+        </Layout>
     )
 }

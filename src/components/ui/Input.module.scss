@@ -1,0 +1,36 @@
+@use '../../styles/variables.module.scss' as *;
+
+.inputGroup {
+    margin-bottom: 1.25rem;
+    width: 100%;
+}
+
+.label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: $text-muted;
+    margin-bottom: 0.5rem;
+    margin-left: 0.5rem;
+}
+
+.input {
+    width: 100%;
+    padding: 0.875rem 1.25rem;
+    border-radius: $radius-lg;
+    border: 2px solid #E5E7EB;
+    background-color: white;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    outline: none;
+
+    &:focus {
+        border-color: $primary;
+        box-shadow: 0 0 0 4px rgba($primary, 0.1);
+    }
+
+    &::placeholder {
+        color: #9CA3AF;
+    }
+}

@@ -1,0 +1,141 @@
+@use '../../styles/variables.module.scss' as *;
+
+.swiperContainer {
+    width: 100%;
+    max-width: 450px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 2rem;
+    padding-bottom: 2rem;
+}
+
+.cardStack {
+    position: relative;
+    width: 100%;
+    height: 600px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    perspective: 1000px;
+}
+
+.swipeCard {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    will-change: transform;
+    touch-action: none;
+    cursor: grab;
+
+    // Prevent image dragging/selecting
+    user-select: none;
+    -webkit-user-drag: none;
+
+    &:active {
+        cursor: grabbing;
+    }
+}
+
+.cardInner {
+    pointer-events: none;
+    height: 100%;
+    width: 100%;
+}
+
+// Overlay labels (Like/Nope)
+.overlayLabel {
+    position: absolute;
+    top: 40px;
+    z-index: 100;
+    border: 4px solid;
+    border-radius: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    pointer-events: none;
+}
+
+.overlayLike {
+    left: 40px;
+    color: #4ade80; // green-400
+    border-color: #4ade80;
+    transform: rotate(-15deg);
+}
+
+.overlayNope {
+    right: 40px;
+    color: #ef4444; // red-500
+    border-color: #ef4444;
+    transform: rotate(15deg);
+}
+
+// Controls
+.controls {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    align-items: center;
+    margin-top: auto;
+}
+
+.roundButton {
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: -md;
+    background: white;
+
+    &:hover:not(:disabled) {
+        transform: scale(1.1);
+        box-shadow: -lg;
+    }
+
+    &:active:not(:disabled) {
+        transform: scale(0.95);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+.passButton {
+    color: #ef4444;
+    border: 2px solid #fee2e2;
+
+    &:hover:not(:disabled) {
+        background: #fef2f2;
+    }
+}
+
+.likeButton {
+    color: #10b981;
+    border: 2px solid #d1fae5;
+
+    &:hover:not(:disabled) {
+        background: #ecfdf5;
+    }
+}
+
+.emptyState {
+    width: 100%;
+    height: 600px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+
+    padding: 2rem;
+    color: $text-dark;
+}

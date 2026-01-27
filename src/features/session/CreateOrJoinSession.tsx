@@ -5,6 +5,11 @@ import { createUserSession, joinSession } from '../../api/usersApi'
 import { useAuth } from '../../state/authStore'
 import { Session } from '../../types/session'
 
+import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
+import { Card } from '../../components/ui/Card'
+import { Layout } from '../../components/ui/Layout'
+
 export default function CreateOrJoinSession() {
     const [limit, setLimit] = useState(10)
     const [code, setCode] = useState('')
@@ -27,95 +32,95 @@ export default function CreateOrJoinSession() {
     })
 
     return (
-        <div className="p-6 max-w-md mx-auto">
-            <h2 className="text-xl font-semibold">Create or Join Session</h2>
-            <div className="mt-4 space-y-6">
-                {/* Create section - card */}
-                <div className="p-4 border rounded-lg shadow-sm bg-white">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <label className="mr-2">Limit</label>
-                            <input
-                                type="number"
-                                value={limit}
-                                onChange={e => setLimit(Number(e.target.value))}
-                                className="border p-1 w-24"
-                            />
-                        </div>
-                        <div>
-                            <button
-                                className="px-4 py-2 bg-blue-600 text-white rounded"
+        <Layout>
+            <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 px-4">
+                {/* Create section */}
+                <Card
+                    title="Host a Session"
+                    subtitle="Create a room and invite friends"
+                >
+                    <div className="space-y-4">
+                        <Input
+                            label="Movie Limit"
+                            type="number"
+                            value={limit}
+                            onChange={e => setLimit(Number(e.target.value))}
+                        />
+
+                        {!createdSession ? (
+                            <Button
+                                fullWidth
                                 onClick={() => createMut.mutate(limit)}
                                 disabled={!user || createMut.isLoading}
                             >
-                                {createMut.isLoading ? 'Creating...' : 'Create session'}
-                            </button>
-                        </div>
-                    </div>
-
-                    {createdSession && (
-                        <div className="mt-4 bg-gray-50 p-3 rounded">
-                            <div className="text-sm text-gray-700 font-medium">Session created</div>
-                            <div className="mt-2 flex items-center">
-                                <input
-                                    className="border p-2 w-56 mr-3 bg-white"
-                                    value={createdSession.code ?? ''}
-                                    readOnly
-                                />
-                                <button
-                                    className="px-3 py-1 bg-indigo-500 text-white rounded mr-2 flex items-center justify-center"
-                                    aria-label="Copy session code"
-                                    title="Copy session code"
-                                    onClick={async () => {
-                                        const text = createdSession.code ?? ''
-                                        try {
-                                            await navigator.clipboard.writeText(text)
-                                            setCopied(true)
-                                            setTimeout(() => setCopied(false), 1500)
-                                        } catch (e) {
-                                            // noop fallback — input is selectable
-                                        }
-                                    }}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5h6a2 2 0 012 2v11a2 2 0 01-2 2H9a2 2 0 01-2-2V7a2 2 0 012-2z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                    </svg>
-                                </button>
-                                <button
-                                    className="px-3 py-1 bg-green-600 text-white rounded"
+                                {createMut.isLoading ? 'Creating...' : 'Create New Room'}
+                            </Button>
+                        ) : (
+                            <div className="mt-4 bg-gray-50 p-4 rounded-xl border-dashed border-2 border-primary/20">
+                                <div className="text-sm text-gray-700 font-bold mb-2">Room Code:</div>
+                                <div className="flex gap-2">
+                                    <input
+                                        className="bg-white border rounded-lg px-3 py-2 flex-1 font-mono text-lg tracking-widest text-[#FF4B6E]"
+                                        value={createdSession.code ?? ''}
+                                        readOnly
+                                    />
+                                    <button
+                                        className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors border"
+                                        onClick={async () => {
+                                            const text = createdSession.code ?? ''
+                                            try {
+                                                await navigator.clipboard.writeText(text)
+                                                setCopied(true)
+                                                setTimeout(() => setCopied(false), 1500)
+                                            } catch (e) { }
+                                        }}
+                                    >
+                                        {copied ? '✅' : '📋'}
+                                    </button>
+                                </div>
+                                <Button
+                                    className="mt-4"
+                                    variant="secondary"
+                                    fullWidth
                                     onClick={() => createdSession.code && joinMut.mutate(createdSession.code)}
                                 >
-                                    Start session
-                                </button>
+                                    Jump In!
+                                </Button>
+                                {copied && <div className="text-xs text-green-600 mt-2 text-center">Code copied to clipboard!</div>}
                             </div>
-                            {copied && <div className="text-xs text-green-600 mt-2">Copied!</div>}
-                        </div>
-                    )}
-                </div>
-
-                {/* Join section - separate card */}
-                <div className="p-4 border rounded-lg shadow-sm bg-white">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <label className="mr-2">Join code</label>
-                            <input
-                                value={code}
-                                onChange={e => setCode(e.target.value)}
-                                className="border p-1 w-48"
-                            />
-                        </div>
-                        <div>
-                            <button
-                                className="px-4 py-2 bg-green-600 text-white rounded"
-                                onClick={() => joinMut.mutate(code)}
-                            >
-                                Join
-                            </button>
-                        </div>
+                        )}
                     </div>
-                </div>
+                </Card>
+
+                {/* Join section */}
+                <Card
+                    title="Join Friend"
+                    subtitle="Enter a code to start matching"
+                >
+                    <div className="space-y-4">
+                        <Input
+                            label="Join code"
+                            placeholder="e.g. ABCD-1234"
+                            value={code}
+                            onChange={e => setCode(e.target.value)}
+                        />
+                        <Button
+                            variant="primary"
+                            fullWidth
+                            onClick={() => joinMut.mutate(code)}
+                            disabled={!user || !code || joinMut.isLoading}
+                        >
+                            {joinMut.isLoading ? 'Joining...' : 'Join Room'}
+                        </Button>
+
+                        {joinMut.isError && (
+                            <div className="text-red-500 text-sm text-center font-medium mt-2">
+                                Room not found. Check the code and try again.
+                            </div>
+                        )}
+                    </div>
+                </Card>
             </div>
-        </div>
+        </Layout>
     )
 }

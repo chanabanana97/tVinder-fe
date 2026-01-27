@@ -1,0 +1,35 @@
+@use '../../styles/variables.module.scss' as *;
+
+.layout {
+    min-height: 100vh;
+    background-color: $bg-light;
+    background-image:
+        radial-gradient(at 0% 0%, rgba($primary, 0.05) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba($secondary, 0.05) 0px, transparent 50%);
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+}
+
+.main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.logo {
+    font-size: 2.5rem;
+    font-weight: 900;
+    text-align: center;
+    margin-bottom: 2rem;
+    color: $primary;
+    letter-spacing: -2px;
+
+    span {
+        color: $text-dark;
+    }
+}
