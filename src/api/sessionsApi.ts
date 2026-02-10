@@ -7,14 +7,14 @@ export function createSession(): Promise<Session> {
 }
 
 export function endSession(sessionId: number): Promise<boolean> {
-    return request(`/sessions/end?sessionId=${sessionId}`, 'POST')
+    return request(`/sessions/${sessionId}/end`, 'POST')
 }
 
 
 export function getSession(sessionId: number): Promise<Session> {
-    return request(`/sessions?sessionId=${sessionId}`, 'GET')
+    return request(`/sessions/${sessionId}`, 'GET')
 }
 
-export function saveSwipe(sessionId: number, userId: number, movieId: number, liked: boolean): Promise<Movie[] | null> {
-    return request(`/sessions/${sessionId}/swipes`, 'POST', { userId, movieId, liked })
+export function saveSwipe(sessionId: number, movieId: number, liked: boolean): Promise<Movie[] | null> {
+    return request(`/sessions/${sessionId}/swipes`, 'POST', { movieId, liked })
 }

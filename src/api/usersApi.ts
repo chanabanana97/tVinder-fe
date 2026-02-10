@@ -9,10 +9,10 @@ export function createUser(username: string, password: string): Promise<User> {
     return request('/users/create', 'POST', { username, password })
 }
 
-export function createUserSession(userId: number, limit: number) {
-    return request(`/users/${userId}/create-session?limit=${limit}`, 'POST')
+export function createUserSession(limit: number) {
+    return request(`/users/create-session?limit=${limit}`, 'POST')
 }
 
-export function joinSession(userId: number, sessionCode: string): Promise<number> {
-    return request(`/users/${userId}/join-session?sessionCode=${encodeURIComponent(sessionCode)}`, 'POST')
+export function joinSession(sessionCode: string): Promise<number> {
+    return request(`/users/join-session?sessionCode=${encodeURIComponent(sessionCode)}`, 'POST')
 }

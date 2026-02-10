@@ -13,7 +13,8 @@ import styles from './MovieSwiper.module.scss'
 export default function MovieSwiper() {
     const { sessionId } = useParams<{ sessionId: string }>()
     const navigate = useNavigate()
-    const { data: movies, isLoading } = useQuery(['sessionMovies', sessionId], () => fetchSessionMovies(Number(sessionId)))
+    const userId = useAuth((s) => s.userId)
+    const { data: movies, isLoading, isError } = useQuery(['sessionMovies', sessionId, userId], () => fetchSessionMovies(Number(sessionId)), { enabled: !!userId })
 
     const [index, setIndex] = useState(() => {
         const saved = localStorage.getItem(`swipe_index_${sessionId}`)
@@ -26,11 +27,18 @@ export default function MovieSwiper() {
         }
     }, [index, sessionId])
 
+    if (isLoading) {
+        return <Layout><div className="flex justify-center items-center h-full text-white">Loading movies...</div></Layout>
+    }
+
+    if (isError) {
+        return <Layout><div className="flex justify-center items-center h-full text-white">Unable to load session.</div></Layout>
+    }
+
     const [isMatchOpen, setIsMatchOpen] = useState(false)
-    const userId = useAuth((s) => s.userId)
 
     const swipeMut = useMutation(({ movieId, liked }: { movieId: number, liked: boolean }) =>
-        saveSwipe(Number(sessionId), userId!, movieId, liked),
+        saveSwipe(Number(sessionId), movieId, liked),
         {
             onError: (err) => {
                 console.error('Failed saving swipe', err)

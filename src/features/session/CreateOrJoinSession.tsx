@@ -18,14 +18,14 @@ export default function CreateOrJoinSession() {
     const user = useAuth((s) => s.userId)
     const navigate = useNavigate()
 
-    const createMut = useMutation((limit: number) => createUserSession(user!, limit), {
+    const createMut = useMutation((limit: number) => createUserSession(limit), {
         onSuccess(session: any) {
             // store created session so user can copy the code and start the session manually
             setCreatedSession(session)
         },
     })
 
-    const joinMut = useMutation((code: string) => joinSession(user!, code), {
+    const joinMut = useMutation((code: string) => joinSession(code), {
         onSuccess: (sessionId: number) => {
             navigate(`/session/${sessionId}`)
         },

@@ -5,7 +5,7 @@ const BASE = (import.meta as any).env?.VITE_API_BASE_URL || ''
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
-export async function request<T>(path: string, method: HttpMethod = 'GET', body?: any): Promise<T> {
+export async function request<T>(path: string, method: HttpMethod = 'GET', body?: any, headers: Record<string, string> = {}): Promise<T> {
     const ENABLE_LOG = (import.meta as any).env?.VITE_ENABLE_API_LOGGING === 'true'
     const fullUrl = `${BASE}${path}`
     const start = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()
@@ -38,9 +38,27 @@ export async function request<T>(path: string, method: HttpMethod = 'GET', body?
         }
     }
 
+    // Auto-inject X-User-Id from localStorage if available
+    const authHeaders: Record<string, string> = {}
+    if (typeof window !== 'undefined') {
+        const storedUser = window.localStorage.getItem('tvinder_user')
+        if (storedUser) {
+            // value is stored as simple string or JSON string of a number, but we just need the value
+            // authStore uses JSON.parse so we trust it's a valid ID.
+            // If stored as "5", we send "5".
+            try {
+                const parsed = JSON.parse(storedUser);
+                authHeaders['X-User-Id'] = String(parsed);
+            } catch {
+                // fallback if simple string
+                authHeaders['X-User-Id'] = storedUser;
+            }
+        }
+    }
+
     const res = await fetch(fullUrl, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders, ...headers },
         body: body ? JSON.stringify(body) : undefined,
     })
 
@@ -69,6 +87,20 @@ export async function request<T>(path: string, method: HttpMethod = 'GET', body?
 
     if (!res.ok) {
         const errMsg = typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
+
+        // Handle global auth/session errors
+        if (typeof window !== 'undefined') {
+            if (res.status === 401 && !window.location.pathname.includes('/login')) {
+                window.location.href = '/login';
+            } else if (res.status === 403) {
+                window.location.href = '/error?type=forbidden';
+            } else if (res.status === 404 && window.location.pathname.includes('/session/')) {
+                // Only redirect on 404 if we are inside a specific session route, 
+                // implying the session we are looking at is gone.
+                window.location.href = '/error?type=notfound';
+            }
+        }
+
         throw new Error(errMsg || `HTTP ${res.status}`)
     }
 
