@@ -14,7 +14,7 @@ export default function MovieSwiper() {
     const { sessionId } = useParams<{ sessionId: string }>()
     const navigate = useNavigate()
     const userId = useAuth((s) => s.userId)
-    const { data: movies, isLoading, isError } = useQuery(['sessionMovies', sessionId, userId], () => fetchSessionMovies(Number(sessionId)), { enabled: !!userId })
+    const { data: movies, isLoading, isError } = useQuery(['sessionMovies', sessionId, userId], () => fetchSessionMovies(Number(sessionId)))
 
     const [index, setIndex] = useState(() => {
         const saved = localStorage.getItem(`swipe_index_${sessionId}`)
@@ -27,12 +27,17 @@ export default function MovieSwiper() {
         }
     }, [index, sessionId])
 
+    // Early auth check: if not logged in, show brief message before backend 401 triggers redirect
+    if (!userId) {
+        return <Layout><div className="flex justify-center items-center h-full text-white">Checking access...</div></Layout>
+    }
+
     if (isLoading) {
         return <Layout><div className="flex justify-center items-center h-full text-white">Loading movies...</div></Layout>
     }
 
     if (isError) {
-        return <Layout><div className="flex justify-center items-center h-full text-white">Unable to load session.</div></Layout>
+        return <Layout><div className="flex justify-center items-center h-full text-white">Session unavailable. It may have ended or you don't have access.</div></Layout>
     }
 
     const [isMatchOpen, setIsMatchOpen] = useState(false)

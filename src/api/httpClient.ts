@@ -1,3 +1,5 @@
+import { useErrorStore } from '../state/errorStore'
+
 // Use Vite env variable when provided (for production or custom host). During dev,
 // calls should use relative paths so the Vite dev-server proxy can forward them
 // and avoid CORS preflight failures.
@@ -90,14 +92,35 @@ export async function request<T>(path: string, method: HttpMethod = 'GET', body?
 
         // Handle global auth/session errors
         if (typeof window !== 'undefined') {
+            const { showError } = useErrorStore.getState()
+
             if (res.status === 401 && !window.location.pathname.includes('/login')) {
+                // Only redirect for unauthorized - user needs to login
                 window.location.href = '/login';
             } else if (res.status === 403) {
-                window.location.href = '/error?type=forbidden';
+                showError({
+                    title: 'Access Denied',
+                    message: 'You do not have permission to access this session. It may be closed or you are not a participant.',
+                    actionLabel: 'Go to Sessions',
+                    onAction: () => window.location.href = '/session'
+                })
+                window.location.href = '/error';
             } else if (res.status === 404 && window.location.pathname.includes('/session/')) {
-                // Only redirect on 404 if we are inside a specific session route, 
-                // implying the session we are looking at is gone.
-                window.location.href = '/error?type=notfound';
+                showError({
+                    title: 'Session Not Found',
+                    message: 'The session you are looking for does not exist or has ended.',
+                    actionLabel: 'Go to Sessions',
+                    onAction: () => window.location.href = '/session'
+                })
+                window.location.href = '/error';
+            } else if (res.status === 500) {
+                if (window.location.pathname.includes('/session/')) {
+                    showError({
+                        title: 'Server Error',
+                        message: 'Something went wrong on our end. Please try again later.'
+                    })
+                    window.location.href = '/error';
+                }
             }
         }
 
