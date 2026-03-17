@@ -21,26 +21,10 @@ export default function MovieSwiper() {
         return saved ? parseInt(saved, 10) : 0
     })
 
-    useEffect(() => {
-        if (sessionId) {
-            localStorage.setItem(`swipe_index_${sessionId}`, index.toString())
-        }
-    }, [index, sessionId])
-
-    // Early auth check: if not logged in, show brief message before backend 401 triggers redirect
-    if (!userId) {
-        return <Layout><div className="flex justify-center items-center h-full text-white">Checking access...</div></Layout>
-    }
-
-    if (isLoading) {
-        return <Layout><div className="flex justify-center items-center h-full text-white">Loading movies...</div></Layout>
-    }
-
-    if (isError) {
-        return <Layout><div className="flex justify-center items-center h-full text-white">Session unavailable. It may have ended or you don't have access.</div></Layout>
-    }
-
     const [isMatchOpen, setIsMatchOpen] = useState(false)
+    const [drag, setDrag] = useState({ x: 0, y: 0, angle: 0, dragging: false })
+    const topRef = useRef<HTMLDivElement | null>(null)
+    const threshold = 120
 
     const swipeMut = useMutation(({ movieId, liked }: { movieId: number, liked: boolean }) =>
         saveSwipe(Number(sessionId), movieId, liked),
@@ -50,13 +34,12 @@ export default function MovieSwiper() {
             }
         })
 
-    const handleSwipe = useCallback((liked: boolean) => {
-        if (isMatchOpen) return
-        if (!movies || index >= movies.length) return
+    useEffect(() => {
+        if (sessionId) {
+            localStorage.setItem(`swipe_index_${sessionId}`, index.toString())
+        }
+    }, [index, sessionId])
 
-        // Trigger manual swipe animation logic
-        triggerSwipe(liked ? 'like' : 'pass')
-    }, [movies, index, isMatchOpen]) // triggerSwipe will be stable or captured below
     const finalizeSwipe = useCallback((liked: boolean) => {
         setIndex((prev) => prev + 1)
         if (movies && movies[index]) {
@@ -64,30 +47,29 @@ export default function MovieSwiper() {
         }
     }, [movies, index, swipeMut])
 
-    // Drag/swipe state
-    const [drag, setDrag] = useState({ x: 0, y: 0, angle: 0, dragging: false })
-    const topRef = useRef<HTMLDivElement | null>(null)
-    const threshold = 120
-
-    const triggerSwipe = (action: 'like' | 'pass') => {
+    const triggerSwipe = useCallback((action: 'like' | 'pass') => {
         if (isMatchOpen) return
         if (topRef.current) {
             topRef.current.style.transition = 'transform 0.3s ease-in-out'
         }
 
         const dir = action === 'like' ? 1 : -1
-        const offX = (dir * 1000) + (drag.x * 3)
-        setDrag(d => ({ ...d, x: offX, y: d.y + 50, dragging: false })) // Maintain y direction feel
+        setDrag(d => ({ ...d, x: (dir * 1000) + (d.x * 3), y: d.y + 50, dragging: false }))
 
         setTimeout(() => {
             finalizeSwipe(action === 'like')
-            // reset drag for next card
             setDrag({ x: 0, y: 0, angle: 0, dragging: false })
             if (topRef.current) {
-                topRef.current.style.transition = '' // Remove transition for next drag
+                topRef.current.style.transition = ''
             }
         }, 300)
-    }
+    }, [isMatchOpen, finalizeSwipe])
+
+    const handleSwipe = useCallback((liked: boolean) => {
+        if (isMatchOpen) return
+        if (!movies || index >= movies.length) return
+        triggerSwipe(liked ? 'like' : 'pass')
+    }, [movies, index, isMatchOpen, triggerSwipe])
 
     const settleSwipe = (x: number) => {
         if (x > threshold) return 'like'
@@ -104,7 +86,6 @@ export default function MovieSwiper() {
 
     const onPointerMove = (e: React.PointerEvent) => {
         if (!drag.dragging) return
-        // simple mapping: x -> rotate angle
         const x = e.movementX + (drag.x || 0)
         const y = e.movementY + (drag.y || 0)
         const angle = Math.max(-30, Math.min(30, (x / 10)))
@@ -131,7 +112,7 @@ export default function MovieSwiper() {
         }
         window.addEventListener('keydown', onKey)
         return () => window.removeEventListener('keydown', onKey)
-    }, [drag.dragging, index, isMatchOpen])
+    }, [drag.dragging, index, isMatchOpen, triggerSwipe])
 
     // Preload next images
     useEffect(() => {
@@ -149,6 +130,11 @@ export default function MovieSwiper() {
         return () => { imgs.forEach(i => (i.src = '')) }
     }, [index, movies])
 
+    // Early auth check: if not logged in, show brief message before backend 401 triggers redirect
+    if (!userId) {
+        return <Layout><div className="flex justify-center items-center h-full text-white">Checking access...</div></Layout>
+    }
+
     if (isLoading) {
         return (
             <Layout>
@@ -158,6 +144,10 @@ export default function MovieSwiper() {
                 </div>
             </Layout>
         )
+    }
+
+    if (isError) {
+        return <Layout><div className="flex justify-center items-center h-full text-white">Session unavailable. It may have ended or you don't have access.</div></Layout>
     }
 
     const currentMovie = movies && index < movies.length ? movies[index] : null

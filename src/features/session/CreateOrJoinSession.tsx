@@ -4,6 +4,7 @@ import { useMutation } from 'react-query'
 import { createUserSession, joinSession } from '../../api/usersApi'
 import { useAuth } from '../../state/authStore'
 import { Session } from '../../types/session'
+import { GENRES } from '../../constants/genres'
 
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
@@ -13,12 +14,27 @@ import { Layout } from '../../components/ui/Layout'
 export default function CreateOrJoinSession() {
     const [limit, setLimit] = useState(10)
     const [code, setCode] = useState('')
+    const [selectedGenres, setSelectedGenres] = useState<number[]>([])
     const [createdSession, setCreatedSession] = useState<Session | null>(null)
     const [copied, setCopied] = useState(false)
     const user = useAuth((s) => s.userId)
     const navigate = useNavigate()
 
-    const createMut = useMutation((limit: number) => createUserSession(limit), {
+    const MAX_GENRES = 3
+
+    const toggleGenre = (genreId: number) => {
+        setSelectedGenres(prev => {
+            if (prev.includes(genreId)) {
+                return prev.filter(id => id !== genreId)
+            }
+            if (prev.length >= MAX_GENRES) {
+                return prev
+            }
+            return [...prev, genreId]
+        })
+    }
+
+    const createMut = useMutation(() => createUserSession(limit, selectedGenres.length > 0 ? selectedGenres : undefined), {
         onSuccess(session: any) {
             // store created session so user can copy the code and start the session manually
             setCreatedSession(session)
@@ -47,10 +63,47 @@ export default function CreateOrJoinSession() {
                             onChange={e => setLimit(Number(e.target.value))}
                         />
 
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Filter by Genres (optional, max 3)
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                                {GENRES.map(genre => {
+                                    const isSelected = selectedGenres.includes(genre.id)
+                                    const isDisabled = !isSelected && selectedGenres.length >= MAX_GENRES
+                                    return (
+                                        <button
+                                            key={genre.id}
+                                            type="button"
+                                            onClick={() => toggleGenre(genre.id)}
+                                            disabled={isDisabled}
+                                            className={`
+                                                px-3 py-2 rounded-lg text-sm font-medium transition-all
+                                                min-h-[44px] touch-manipulation
+                                                ${isSelected
+                                                    ? 'bg-[#FF4B6E] text-white shadow-md scale-105'
+                                                    : isDisabled
+                                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300 active:scale-95'
+                                                }
+                                            `}
+                                        >
+                                            {genre.name}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                            {selectedGenres.length > 0 && (
+                                <div className="mt-2 text-xs text-gray-600">
+                                    {selectedGenres.length}/{MAX_GENRES} selected
+                                </div>
+                            )}
+                        </div>
+
                         {!createdSession ? (
                             <Button
                                 fullWidth
-                                onClick={() => createMut.mutate(limit)}
+                                onClick={() => createMut.mutate()}
                                 disabled={!user || createMut.isLoading}
                             >
                                 {createMut.isLoading ? 'Creating...' : 'Create New Room'}
