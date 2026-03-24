@@ -20,7 +20,7 @@ export function MatchNotificationListener({ sessionId, onMatchStateChange }: Pro
     }, [match, onMatchStateChange])
 
     useEffect(() => {
-        if (!sessionId) return;
+        if (!sessionId) return
 
         // In development, use relative path so requests go through Vite proxy
         // In production, use the full URL from env
@@ -34,32 +34,28 @@ export function MatchNotificationListener({ sessionId, onMatchStateChange }: Pro
             webSocketFactory: () => new SockJS(socketUrl),
             reconnectDelay: 5000,
             onConnect: () => {
-                console.log('Connected to WebSocket')
                 client.subscribe(`/topic/match/${sessionId}`, (message) => {
                     if (message.body) {
                         try {
                             const movie = JSON.parse(message.body) as Movie
-                            console.log('Match received via WebSocket:', movie)
                             setMatch(movie)
-                        } catch (e) {
-                            console.error('Failed to parse match message:', e)
+                        } catch (error) {
+                            console.error('Failed to parse match message.', error)
                         }
                     }
                 })
             },
             onStompError: (frame) => {
-                console.error('Broker reported error: ' + frame.headers['message'])
-                console.error('Additional details: ' + frame.body)
+                console.error('Broker reported a STOMP error.', frame.headers['message'], frame.body)
             },
             onWebSocketError: (event) => {
-                console.error('WebSocket Error', event)
+                console.error('WebSocket transport error.', event)
             }
         })
 
         client.activate()
 
         return () => {
-            console.log('Disconnecting WebSocket')
             client.deactivate()
         }
     }, [sessionId])
@@ -94,7 +90,7 @@ export function MatchNotificationListener({ sessionId, onMatchStateChange }: Pro
                         fullWidth
                         onClick={() => navigate('/session')}
                     >
-                        End Session
+                        Leave Session
                     </Button>
                 </div>
             </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation } from 'react-query'
 import { createUserSession, joinSession } from '../../api/usersApi'
+import { isUnauthorizedApiError } from '../error/apiErrorHandling'
 import { useAuth } from '../../state/authStore'
 import { Session } from '../../types/session'
 import { GENRES } from '../../constants/genres'
@@ -17,6 +18,7 @@ export default function CreateOrJoinSession() {
     const [selectedGenres, setSelectedGenres] = useState<number[]>([])
     const [createdSession, setCreatedSession] = useState<Session | null>(null)
     const [copied, setCopied] = useState(false)
+    const [copyFailed, setCopyFailed] = useState(false)
     const user = useAuth((s) => s.userId)
     const navigate = useNavigate()
 
@@ -36,15 +38,24 @@ export default function CreateOrJoinSession() {
 
     const createMut = useMutation(() => createUserSession(limit, selectedGenres.length > 0 ? selectedGenres : undefined), {
         onSuccess(session: any) {
-            // store created session so user can copy the code and start the session manually
             setCreatedSession(session)
         },
+        onError(error) {
+            if (isUnauthorizedApiError(error)) {
+                navigate('/login')
+            }
+        }
     })
 
     const joinMut = useMutation((code: string) => joinSession(code), {
         onSuccess: (sessionId: number) => {
             navigate(`/session/${sessionId}`)
         },
+        onError(error) {
+            if (isUnauthorizedApiError(error)) {
+                navigate('/login')
+            }
+        }
     })
 
     return (
@@ -123,9 +134,13 @@ export default function CreateOrJoinSession() {
                                             const text = createdSession.code ?? ''
                                             try {
                                                 await navigator.clipboard.writeText(text)
+                                                setCopyFailed(false)
                                                 setCopied(true)
                                                 setTimeout(() => setCopied(false), 1500)
-                                            } catch (e) { }
+                                            } catch {
+                                                setCopied(false)
+                                                setCopyFailed(true)
+                                            }
                                         }}
                                     >
                                         {copied ? '✅' : '📋'}
@@ -140,6 +155,7 @@ export default function CreateOrJoinSession() {
                                     Jump In!
                                 </Button>
                                 {copied && <div className="text-xs text-green-600 mt-2 text-center">Code copied to clipboard!</div>}
+                                {copyFailed && <div className="text-xs text-red-500 mt-2 text-center">Clipboard copy failed. Copy the code manually.</div>}
                             </div>
                         )}
                     </div>

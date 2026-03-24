@@ -1,11 +1,25 @@
-import { useErrorStore } from '../state/errorStore'
-
 // Use Vite env variable when provided (for production or custom host). During dev,
 // calls should use relative paths so the Vite dev-server proxy can forward them
 // and avoid CORS preflight failures.
 const BASE = (import.meta as any).env?.VITE_API_BASE_URL || ''
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+
+export class ApiError extends Error {
+    status: number
+    data: unknown
+
+    constructor(status: number, message: string, data: unknown) {
+        super(message)
+        this.name = 'ApiError'
+        this.status = status
+        this.data = data
+    }
+}
+
+export function isApiError(error: unknown): error is ApiError {
+    return error instanceof ApiError
+}
 
 export async function request<T>(path: string, method: HttpMethod = 'GET', body?: any, headers: Record<string, string> = {}): Promise<T> {
     const ENABLE_LOG = (import.meta as any).env?.VITE_ENABLE_API_LOGGING === 'true'
@@ -45,16 +59,7 @@ export async function request<T>(path: string, method: HttpMethod = 'GET', body?
     if (typeof window !== 'undefined') {
         const storedUser = window.localStorage.getItem('tvinder_user')
         if (storedUser) {
-            // value is stored as simple string or JSON string of a number, but we just need the value
-            // authStore uses JSON.parse so we trust it's a valid ID.
-            // If stored as "5", we send "5".
-            try {
-                const parsed = JSON.parse(storedUser);
-                authHeaders['X-User-Id'] = String(parsed);
-            } catch {
-                // fallback if simple string
-                authHeaders['X-User-Id'] = storedUser;
-            }
+            authHeaders['X-User-Id'] = storedUser
         }
     }
 
@@ -89,42 +94,7 @@ export async function request<T>(path: string, method: HttpMethod = 'GET', body?
 
     if (!res.ok) {
         const errMsg = typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
-
-        // Handle global auth/session errors
-        if (typeof window !== 'undefined') {
-            const { showError } = useErrorStore.getState()
-
-            if (res.status === 401 && !window.location.pathname.includes('/login')) {
-                // Only redirect for unauthorized - user needs to login
-                window.location.href = '/login';
-            } else if (res.status === 403) {
-                showError({
-                    title: 'Access Denied',
-                    message: 'You do not have permission to access this session. It may be closed or you are not a participant.',
-                    actionLabel: 'Go to Sessions',
-                    onAction: () => window.location.href = '/session'
-                })
-                window.location.href = '/error';
-            } else if (res.status === 404 && window.location.pathname.includes('/session/')) {
-                showError({
-                    title: 'Session Not Found',
-                    message: 'The session you are looking for does not exist or has ended.',
-                    actionLabel: 'Go to Sessions',
-                    onAction: () => window.location.href = '/session'
-                })
-                window.location.href = '/error';
-            } else if (res.status === 500) {
-                if (window.location.pathname.includes('/session/')) {
-                    showError({
-                        title: 'Server Error',
-                        message: 'Something went wrong on our end. Please try again later.'
-                    })
-                    window.location.href = '/error';
-                }
-            }
-        }
-
-        throw new Error(errMsg || `HTTP ${res.status}`)
+        throw new ApiError(res.status, errMsg || `HTTP ${res.status}`, parsed)
     }
 
     return (parsed ?? (null as unknown)) as T

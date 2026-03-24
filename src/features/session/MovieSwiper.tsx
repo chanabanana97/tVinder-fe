@@ -1,20 +1,31 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { Navigate, useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from 'react-query'
 import { fetchSessionMovies } from '../../api/moviesApi'
 import { saveSwipe } from '../../api/sessionsApi'
 import { useAuth } from '../../state/authStore'
+import { useErrorStore } from '../../state/errorStore'
 import { MovieCard } from '../../components/MovieCard'
 import { MatchNotificationListener } from './MatchNotificationListener'
 import { Layout } from '../../components/ui/Layout'
 import { Button } from '../../components/ui/Button'
+import { handleSessionApiError } from '../error/apiErrorHandling'
 import styles from './MovieSwiper.module.scss'
 
 export default function MovieSwiper() {
     const { sessionId } = useParams<{ sessionId: string }>()
     const navigate = useNavigate()
     const userId = useAuth((s) => s.userId)
-    const { data: movies, isLoading, isError } = useQuery(['sessionMovies', sessionId, userId], () => fetchSessionMovies(Number(sessionId)))
+    const showError = useErrorStore((s) => s.showError)
+    const { data: movies, isLoading, isError } = useQuery(
+        ['sessionMovies', sessionId, userId],
+        () => fetchSessionMovies(Number(sessionId)),
+        {
+            onError: (error) => {
+                handleSessionApiError(error, { navigate, showError })
+            }
+        }
+    )
 
     const [index, setIndex] = useState(() => {
         const saved = localStorage.getItem(`swipe_index_${sessionId}`)
@@ -26,11 +37,18 @@ export default function MovieSwiper() {
     const topRef = useRef<HTMLDivElement | null>(null)
     const threshold = 120
 
+    const resetSwipeCard = useCallback(() => {
+        setDrag({ x: 0, y: 0, angle: 0, dragging: false })
+        if (topRef.current) {
+            topRef.current.style.transition = ''
+        }
+    }, [])
+
     const swipeMut = useMutation(({ movieId, liked }: { movieId: number, liked: boolean }) =>
         saveSwipe(Number(sessionId), movieId, liked),
         {
-            onError: (err) => {
-                console.error('Failed saving swipe', err)
+            onError: (error) => {
+                handleSessionApiError(error, { navigate, showError })
             }
         })
 
@@ -40,15 +58,23 @@ export default function MovieSwiper() {
         }
     }, [index, sessionId])
 
-    const finalizeSwipe = useCallback((liked: boolean) => {
-        setIndex((prev) => prev + 1)
-        if (movies && movies[index]) {
-            swipeMut.mutate({ movieId: movies[index].id, liked })
-        }
-    }, [movies, index, swipeMut])
+    const finalizeSwipe = useCallback((movieId: number, liked: boolean) => {
+        swipeMut.mutate(
+            { movieId, liked },
+            {
+                onSuccess: () => {
+                    setIndex((prev) => prev + 1)
+                },
+                onSettled: () => {
+                    resetSwipeCard()
+                }
+            }
+        )
+    }, [resetSwipeCard, swipeMut])
 
     const triggerSwipe = useCallback((action: 'like' | 'pass') => {
-        if (isMatchOpen) return
+        if (isMatchOpen || swipeMut.isLoading || !movies || index >= movies.length) return
+        const movieId = movies[index].id
         if (topRef.current) {
             topRef.current.style.transition = 'transform 0.3s ease-in-out'
         }
@@ -57,19 +83,15 @@ export default function MovieSwiper() {
         setDrag(d => ({ ...d, x: (dir * 1000) + (d.x * 3), y: d.y + 50, dragging: false }))
 
         setTimeout(() => {
-            finalizeSwipe(action === 'like')
-            setDrag({ x: 0, y: 0, angle: 0, dragging: false })
-            if (topRef.current) {
-                topRef.current.style.transition = ''
-            }
+            finalizeSwipe(movieId, action === 'like')
         }, 300)
-    }, [isMatchOpen, finalizeSwipe])
+    }, [finalizeSwipe, index, isMatchOpen, movies, swipeMut.isLoading])
 
     const handleSwipe = useCallback((liked: boolean) => {
-        if (isMatchOpen) return
+        if (isMatchOpen || swipeMut.isLoading) return
         if (!movies || index >= movies.length) return
         triggerSwipe(liked ? 'like' : 'pass')
-    }, [movies, index, isMatchOpen, triggerSwipe])
+    }, [movies, index, isMatchOpen, swipeMut.isLoading, triggerSwipe])
 
     const settleSwipe = (x: number) => {
         if (x > threshold) return 'like'
@@ -78,7 +100,7 @@ export default function MovieSwiper() {
     }
 
     const onPointerDown = (e: React.PointerEvent) => {
-        if (isMatchOpen) return
+        if (isMatchOpen || swipeMut.isLoading) return
         (e.target as Element).setPointerCapture?.(e.pointerId)
         if (topRef.current) topRef.current.style.transition = 'none'
         setDrag({ x: 0, y: 0, angle: 0, dragging: true })
@@ -106,13 +128,13 @@ export default function MovieSwiper() {
     // Keyboard controls
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (isMatchOpen) return
+            if (isMatchOpen || swipeMut.isLoading) return
             if (e.key === 'ArrowRight' && !drag.dragging) triggerSwipe('like')
             if (e.key === 'ArrowLeft' && !drag.dragging) triggerSwipe('pass')
         }
         window.addEventListener('keydown', onKey)
         return () => window.removeEventListener('keydown', onKey)
-    }, [drag.dragging, index, isMatchOpen, triggerSwipe])
+    }, [drag.dragging, isMatchOpen, swipeMut.isLoading, triggerSwipe])
 
     // Preload next images
     useEffect(() => {
@@ -130,9 +152,8 @@ export default function MovieSwiper() {
         return () => { imgs.forEach(i => (i.src = '')) }
     }, [index, movies])
 
-    // Early auth check: if not logged in, show brief message before backend 401 triggers redirect
     if (!userId) {
-        return <Layout><div className="flex justify-center items-center h-full text-white">Checking access...</div></Layout>
+        return <Navigate to="/login" replace />
     }
 
     if (isLoading) {
